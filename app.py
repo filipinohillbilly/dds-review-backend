@@ -1,13 +1,19 @@
 from flask import Flask, request, jsonify
 import openai
 import os
+from datetime import datetime         # ✅ MISSING: Needed for timestamp
 from dotenv import load_dotenv
+
+@app.route("/", methods=["GET"])
+def root():
+    return {"status": "✅ DDS backend is online", "timestamp": datetime.now().isoformat()}
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 assistant_id = os.getenv("ASSISTANT_ID")
 
 app = Flask(__name__)
+
 
 @app.route("/review", methods=["POST"])
 def review():
