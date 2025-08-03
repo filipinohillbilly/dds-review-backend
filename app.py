@@ -1,71 +1,48 @@
 import os
-import openai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 
-# === Load env vars
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")
-
-# === Validate
-if not OPENAI_API_KEY:
-    raise RuntimeError("❌ Missing OPENAI_API_KEY in environment variables.")
-if not ASSISTANT_ID:
-    raise RuntimeError("❌ Missing ASSISTANT_ID in environment variables.")
-
-# === Init API + Flask
-openai.api_key = OPENAI_API_KEY
+# === App Setup
 app = Flask(__name__)
 CORS(app)
 
-@app.route("/")
+UPLOAD_FOLDER = "/tmp"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# === Health Check
+@app.route("/", methods=["GET"])
 def index():
-    return "✅ DDS Assistant Backend is Live"
+    return "DDS backend server is live", 200
 
-@app.route("/submit", methods=["POST"])
-def handle_submit():
+# === Upload Endpoint for Make.com
+@app.route("/upload", methods=["POST"])
+def upload_file():
     try:
-        data = request.get_json()
-        file_id = data.get("file_id")
+        # Ensure file was sent
+        if "file" not in request.files:
+            return jsonify({"error": "No file part in the request"}), 400
 
-        if not file_id:
-            return jsonify({"error": "Missing file_id in request."}), 400
+        file = request.files["file"]
 
-        print(f"📎 Received file_id: {file_id}")
+        # Check that a filename exists
+        if file.filename == "":
+            return jsonify({"error": "No selected file"}), 400
 
-        run = openai.beta.threads.create_and_run(
-            assistant_id=ASSISTANT_ID,
-            thread={
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Perform a DDS portfolio review based on the attached file.",
-                        "file_ids": [file_id]
-                    }
-                ]
-            }
-        )
+        # Save file
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(save_path)
 
-        print(f"🚀 OpenAI Run ID: {run.id}")
-        return jsonify({"run_id": run.id, "status": run.status}), 200
+        print(f"✅ File received and saved to {save_path}")
+        return jsonify({"message": "File uploaded successfully", "path": save_path}), 200
 
     except Exception as e:
-        print(f"❌ Error during /submit: {e}")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
 
-@app.route("/status/<run_id>", methods=["GET"])
-def check_status(run_id):
-    try:
-        run = openai.beta.threads.runs.retrieve(run_id=run_id)
-        return jsonify({
-            "status": run.status,
-            "completed_at": run.completed_at,
-            "required_action": run.required_action
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# === Required for Render deployment
+# === App Entry Point
 if __name__ == "__main__":
     print("📡 Starting DDS backend server...")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    app.run(host="0.0.0.0", port=10000)
