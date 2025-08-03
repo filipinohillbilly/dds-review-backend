@@ -9,8 +9,8 @@ app = Flask(__name__)
 CORS(app)
 
 # === OpenAI Auth
-openai.api_key = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = "asst_xxxxxxxxxxxxx"  # 🔁 Replace with your real assistant ID
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Must be set in environment variables
+ASSISTANT_ID = "asst_xxxxxxxxxxxxxxxxx"       # 🔁 Replace with your real Assistant ID
 
 @app.route("/")
 def index():
@@ -19,17 +19,17 @@ def index():
 @app.route("/upload", methods=["POST"])
 def upload():
     try:
-        if "files" not in request.files:
-            return jsonify(error="No file(s) uploaded."), 400
-
         files = request.files.getlist("files")
-        if not files:
-            return jsonify(error="Empty file list."), 400
+        if not files or files[0].filename == "":
+            return jsonify(error="No files received in 'files' field."), 400
 
         # Step 1: Upload files to OpenAI
         uploaded_files = []
         for f in files:
-            file_upload = openai.files.create(file=f, purpose="assistants")
+            file_upload = openai.files.create(
+                file=f,
+                purpose="assistants"
+            )
             uploaded_files.append(file_upload.id)
 
         # Step 2: Create a thread
@@ -49,27 +49,36 @@ def upload():
             assistant_id=ASSISTANT_ID
         )
 
-        # Step 5: Poll for run completion
-        print("⏳ Waiting for run to complete...")
+        # Step 5: Poll for completion
         while True:
-            run = openai.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
-            if run.status == "completed":
+            run_status = openai.beta.threads.runs.retrieve(
+                thread_id=thread.id,
+                run_id=run.id
+            )
+            if run_status.status == "completed":
                 break
-            elif run.status == "failed":
-                return jsonify(error="DDS run failed."), 500
+            elif run_status.status in ["cancelled", "failed", "expired"]:
+                return jsonify(error=f"Run status: {run_status.status}"), 500
             time.sleep(2)
 
         # Step 6: Retrieve messages
         messages = openai.beta.threads.messages.list(thread_id=thread.id)
-        for msg in reversed(messages.data):
-            if msg.role == "assistant":
-                return jsonify(message=msg.content[0].text.value), 200
 
-        return jsonify(message="DDS run completed but no assistant response found."), 200
+        output = []
+        for msg in messages.data:
+            if msg.role == "assistant":
+                for content in msg.content:
+                    if content.type == "text":
+                        output.append(content.text.value)
+
+        if not output:
+            return jsonify(message="No assistant response found."), 200
+
+        return jsonify(response="\n\n".join(output)), 200
 
     except Exception as e:
-        print("❌ Error:", e)
         return jsonify(error=str(e)), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
