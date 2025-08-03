@@ -1,46 +1,53 @@
 from flask import Flask, request, jsonify
-import openai
+from werkzeug.utils import secure_filename
 import os
-from datetime import datetime
-from dotenv import load_dotenv
+import tempfile
+import fitz  # PyMuPDF
+import logging
 
-# === Load environment variables ===
-load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-assistant_id = os.getenv("ASSISTANT_ID")
-
-# === Initialize Flask app ===
 app = Flask(__name__)
 
-# === Root endpoint ===
-@app.route("/", methods=["GET"])
-def root():
-    return {
+# === Health check route for Render ===
+@app.route("/")
+def home():
+    return jsonify({
         "status": "✅ DDS backend is online",
-        "timestamp": datetime.now().isoformat()
-    }
+        "timestamp": "2025-08-04T00:15:00"
+    })
 
-# === Review endpoint ===
-@app.route("/review", methods=["POST"])
-def review():
-    try:
-        data = request.get_json()
-        pdf_urls = data.get("pdf_links", [])
-        run_id = data.get("run_id", "manual")
+# === Upload endpoint ===
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    if "file" not in request.files:
+        return jsonify({"error": "No file part"}), 400
 
-        if not pdf_urls:
-            return jsonify({"error": "No PDF links provided"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
 
-        # Placeholder for future logic
-        return jsonify({
-            "message": "PDF review initiated",
-            "pdf_count": len(pdf_urls),
-            "run_id": run_id
-        }), 200
+    filename = secure_filename(file.filename)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        file.save(tmp_file.name)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        try:
+            # Extract text with PyMuPDF
+            doc = fitz.open(tmp_file.name)
+            full_text = ""
+            for page in doc:
+                full_text += page.get_text()
+            doc.close()
 
-# === Run locally if needed (commented out for deployment) ===
-# if __name__ == "__main__":
-#     app.run(debug=True)
+            return jsonify({
+                "filename": filename,
+                "text": full_text.strip()
+            })
+
+        except Exception as e:
+            logging.exception("PDF processing failed.")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            os.remove(tmp_file.name)
+
+# === Main entry point ===
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
