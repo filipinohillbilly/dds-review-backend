@@ -1,13 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import openai
 
 app = Flask(__name__)
 CORS(app)
-
-# Set your OpenAI API key (from Render secret env var)
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route('/')
 def index():
@@ -17,35 +13,31 @@ def index():
 def upload():
     try:
         if 'file' not in request.files:
+            print("❌ No file part in the request")
             return jsonify({"error": "No file part in the request"}), 400
+
         file = request.files['file']
         if file.filename == '':
+            print("❌ No selected file")
             return jsonify({"error": "No file selected"}), 400
 
+        # Save the file temporarily
         file_path = os.path.join("/tmp", file.filename)
         file.save(file_path)
+        print(f"✅ File '{file.filename}' received and saved to {file_path}")
 
-        # === Call OpenAI API to analyze content ===
-        with open(file_path, "rb") as f:
-            response = openai.ChatCompletion.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a financial portfolio assistant. Perform a Defend / Destroy / Summarize (DDS) review of the uploaded portfolio snapshot."},
-                    {"role": "user", "content": f"Please analyze this file: {file.filename}"},
-                ],
-                tools=[
-                    {
-                        "type": "file_search"
-                    }
-                ],
-                tool_choice="auto",
-                temperature=0.3
-            )
+        # === Place your analysis logic here ===
+        # For now, we just pretend we processed it
+        print("📊 DDS analysis placeholder triggered...")
 
-        dds_result = response.choices[0].message.content
-        return jsonify({"DDS_review": dds_result}), 200
+        return jsonify({
+            "message": f"File '{file.filename}' received successfully",
+            "status": "success",
+            "path": file_path
+        }), 200
 
     except Exception as e:
+        print(f"❌ Exception during file upload: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
