@@ -1,63 +1,40 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import os
-import fitz  # PyMuPDF
-import openai
-from dotenv import load_dotenv
-
-# Load environment variables from .env
-load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # Optional: allow CORS if Make or browser will hit this
 
-@app.route("/")
-def home():
-    return jsonify({
-        "status": "✅ DDS backend is online",
-        "timestamp": "2025-08-04T00:15:00"
-    })
+@app.route('/')
+def index():
+    return jsonify({"message": "DDS review backend is live"}), 200
 
-@app.route("/upload", methods=["POST"])
+@app.route('/upload', methods=['POST'])
 def upload():
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
-
     try:
-        # Read PDF from uploaded file
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        text = ""
-        for page in doc:
-            text += page.get_text()
+        # Check if the request contains a file part
+        if 'file' not in request.files:
+            print("❌ No file part in the request")
+            return jsonify({"error": "No file part in the request"}), 400
 
-        if len(text.strip()) == 0:
-            return jsonify({"error": "PDF appears to contain no text"}), 400
+        file = request.files['file']
 
-        # Call OpenAI API
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+        # Check if a filename exists
+        if file.filename == '':
+            print("❌ No selected file")
+            return jsonify({"error": "No file selected"}), 400
 
-        prompt = f"""
-You are a financial strategist. Read the following PDF contents and return a DDS (Defend / Destroy / Summarize) review of the portfolio:
+        # Save file temporarily or handle in-memory
+        file_path = os.path.join("/tmp", file.filename)
+        file.save(file_path)
 
-{text}
-"""
-
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert portfolio analyst."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=1500
-        )
-
-        result = response.choices[0].message["content"]
-        return jsonify({"analysis": result})
+        print(f"✅ File '{file.filename}' received and saved to {file_path}")
+        return jsonify({"message": f"File '{file.filename}' received successfully"}), 200
 
     except Exception as e:
+        print(f"💥 Exception during file upload: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port=5000)
+
