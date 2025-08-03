@@ -4,42 +4,43 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import openai
 
-# === Flask Setup
+# === Init Flask
 app = Flask(__name__)
 CORS(app)
 
-# === OpenAI Setup
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure this is set in Render environment
+# === OpenAI Auth
+openai.api_key = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = "asst_xxxxxxxxxxxxx"  # 🔁 Replace with your real assistant ID
 
-# === Your Assistant ID
-ASSISTANT_ID = "asst_XXXXXXXXXXXX"  # Replace with your actual Assistant ID
-
-@app.route("/", methods=["GET"])
-def home():
-    return "DDS Assistant Backend is live."
+@app.route("/")
+def index():
+    return "DDS Assistant Backend is Live"
 
 @app.route("/upload", methods=["POST"])
-def upload_pdf():
+def upload():
     try:
-        file = request.files["file"]
-        if not file:
-            return jsonify({"error": "No file uploaded"}), 400
+        if "files" not in request.files:
+            return jsonify(error="No file(s) uploaded."), 400
 
-        # Step 1: Upload file to OpenAI
-        uploaded_file = openai.files.create(
-            file=file,
-            purpose="assistants"
-        )
+        files = request.files.getlist("files")
+        if not files:
+            return jsonify(error="Empty file list."), 400
 
-        # Step 2: Create a new thread
+        # Step 1: Upload files to OpenAI
+        uploaded_files = []
+        for f in files:
+            file_upload = openai.files.create(file=f, purpose="assistants")
+            uploaded_files.append(file_upload.id)
+
+        # Step 2: Create a thread
         thread = openai.beta.threads.create()
 
-        # Step 3: Add a message referencing the file
-        openai.beta.threads.messages.create(
+        # Step 3: Send a message with file references
+        message = openai.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content="Please perform a full DDS (Defend / Destroy / Summarize) analysis of this PDF.",
-            file_ids=[uploaded_file.id]
+            file_ids=uploaded_files
         )
 
         # Step 4: Run the assistant
@@ -49,33 +50,26 @@ def upload_pdf():
         )
 
         # Step 5: Poll for run completion
-        print("⏳ Waiting for DDS run to complete...")
+        print("⏳ Waiting for run to complete...")
         while True:
-            run_status = openai.beta.threads.runs.retrieve(
-                thread_id=thread.id,
-                run_id=run.id
-            )
-            if run_status.status == "completed":
+            run = openai.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+            if run.status == "completed":
                 break
-            elif run_status.status == "failed":
-                raise Exception("❌ GPT DDS run failed.")
-            time.sleep(3)
+            elif run.status == "failed":
+                return jsonify(error="DDS run failed."), 500
+            time.sleep(2)
 
         # Step 6: Retrieve messages
         messages = openai.beta.threads.messages.list(thread_id=thread.id)
-
-        # Step 7: Extract latest assistant message
-        for msg in messages.data:
+        for msg in reversed(messages.data):
             if msg.role == "assistant":
-                print("\n📘 DDS Assistant Response:\n")
-                print(msg.content[0].text.value)
-                return jsonify({"message": msg.content[0].text.value}), 200
+                return jsonify(message=msg.content[0].text.value), 200
 
-        return jsonify({"message": "No assistant response found."}), 200
+        return jsonify(message="DDS run completed but no assistant response found."), 200
 
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return jsonify({"error": str(e)}), 500
+        print("❌ Error:", e)
+        return jsonify(error=str(e)), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=8000)
