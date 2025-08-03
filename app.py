@@ -1,54 +1,71 @@
 import os
+import openai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import openai
 
-# === Init Flask
+# === Load env vars
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ASSISTANT_ID = os.getenv("ASSISTANT_ID")
+
+# === Validate
+if not OPENAI_API_KEY:
+    raise RuntimeError("❌ Missing OPENAI_API_KEY in environment variables.")
+if not ASSISTANT_ID:
+    raise RuntimeError("❌ Missing ASSISTANT_ID in environment variables.")
+
+# === Init API + Flask
+openai.api_key = OPENAI_API_KEY
 app = Flask(__name__)
 CORS(app)
 
-# === OpenAI Auth
-openai.api_key = os.getenv("OPENAI_API_KEY")
-ASSISTANT_ID = os.getenv("ASSISTANT_ID")  # Load from Render environment variable
-
 @app.route("/")
 def index():
-    return "DDS Assistant Backend is Live"
+    return "✅ DDS Assistant Backend is Live"
 
-@app.route("/upload", methods=["POST"])
-def upload():
+@app.route("/submit", methods=["POST"])
+def handle_submit():
     try:
-        if "files" not in request.files:
-            return jsonify(error="No files uploaded."), 400
+        data = request.get_json()
+        file_id = data.get("file_id")
 
-        files = request.files.getlist("files")
-        if not files:
-            return jsonify(error="Empty file list."), 400
+        if not file_id:
+            return jsonify({"error": "Missing file_id in request."}), 400
 
-        # Step 1: Upload all files to OpenAI
-        uploaded_file_ids = []
-        for f in files:
-            upload = openai.files.create(file=f, purpose="assistants")
-            uploaded_file_ids.append(upload.id)
+        print(f"📎 Received file_id: {file_id}")
 
-        # Step 2: Create a new thread
-        thread = openai.beta.threads.create()
-
-        # Step 3: Send a message with file references
-        openai.beta.threads.messages.create(
-            thread_id=thread.id,
-            role="user",
-            content="Please perform a full DDS (Defend / Destroy / Summarize) analysis of these PDFs.",
-            file_ids=uploaded_file_ids
+        run = openai.beta.threads.create_and_run(
+            assistant_id=ASSISTANT_ID,
+            thread={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Perform a DDS portfolio review based on the attached file.",
+                        "file_ids": [file_id]
+                    }
+                ]
+            }
         )
 
-        # Step 4: Run the assistant
-        run = openai.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=ASSISTANT_ID
-        )
-
-        return jsonify(message="Files uploaded and assistant triggered.", run_id=run.id, thread_id=thread.id)
+        print(f"🚀 OpenAI Run ID: {run.id}")
+        return jsonify({"run_id": run.id, "status": run.status}), 200
 
     except Exception as e:
-        return jsonify(error=str(e)), 500
+        print(f"❌ Error during /submit: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/status/<run_id>", methods=["GET"])
+def check_status(run_id):
+    try:
+        run = openai.beta.threads.runs.retrieve(run_id=run_id)
+        return jsonify({
+            "status": run.status,
+            "completed_at": run.completed_at,
+            "required_action": run.required_action
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# === Required for Render deployment
+if __name__ == "__main__":
+    print("📡 Starting DDS backend server...")
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
