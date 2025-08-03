@@ -1,5 +1,4 @@
 flask
-PyMuPDF
+flask-cors
 openai
 python-dotenv
-flask-cors
