@@ -1,13 +1,14 @@
 from flask import Flask, request, jsonify
-from werkzeug.utils import secure_filename
 import os
-import tempfile
 import fitz  # PyMuPDF
-import logging
+import openai
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__)
 
-# === Health check route for Render ===
 @app.route("/")
 def home():
     return jsonify({
@@ -15,9 +16,8 @@ def home():
         "timestamp": "2025-08-04T00:15:00"
     })
 
-# === Upload endpoint ===
 @app.route("/upload", methods=["POST"])
-def upload_file():
+def upload():
     if "file" not in request.files:
         return jsonify({"error": "No file part"}), 400
 
@@ -25,29 +25,39 @@ def upload_file():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
-    filename = secure_filename(file.filename)
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        file.save(tmp_file.name)
+    try:
+        # Read PDF from uploaded file
+        doc = fitz.open(stream=file.read(), filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
 
-        try:
-            # Extract text with PyMuPDF
-            doc = fitz.open(tmp_file.name)
-            full_text = ""
-            for page in doc:
-                full_text += page.get_text()
-            doc.close()
+        if len(text.strip()) == 0:
+            return jsonify({"error": "PDF appears to contain no text"}), 400
 
-            return jsonify({
-                "filename": filename,
-                "text": full_text.strip()
-            })
+        # Call OpenAI API
+        openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        except Exception as e:
-            logging.exception("PDF processing failed.")
-            return jsonify({"error": str(e)}), 500
-        finally:
-            os.remove(tmp_file.name)
+        prompt = f"""
+You are a financial strategist. Read the following PDF contents and return a DDS (Defend / Destroy / Summarize) review of the portfolio:
 
-# === Main entry point ===
+{text}
+"""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert portfolio analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1500
+        )
+
+        result = response.choices[0].message["content"]
+        return jsonify({"analysis": result})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
