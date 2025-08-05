@@ -19,43 +19,47 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# === Load API Key
+# === Load OpenAI API Key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 if not openai.api_key:
     logging.warning("[INIT] OPENAI_API_KEY not found in environment.")
 
-# === Utility: Extract text from PDF
+# === Utility: Extract text from a PDF
 def extract_text_from_pdf(filepath):
     try:
         with fitz.open(filepath) as doc:
             text = "\n".join([page.get_text().strip() for page in doc])
             if not text.strip():
                 raise ValueError(f"Empty text extracted from {filepath}")
-            logging.info(f"[EXTRACT] Text extracted from {os.path.basename(filepath)} — {len(text)} chars")
+            logging.info(f"[EXTRACT] Extracted from {os.path.basename(filepath)} — {len(text)} chars")
             return text
     except Exception as e:
-        logging.error(f"[EXTRACT ERROR] Failed on {filepath}")
+        logging.error(f"[EXTRACT ERROR] {filepath}")
         logging.error(traceback.format_exc())
         raise RuntimeError(f"Text extraction failed for {filepath}: {str(e)}")
 
-# === Utility: Load DDS prompt instructions
+# === Utility: Load GPT instructions
 def load_instructions():
     try:
+        if not os.path.exists(INSTRUCTIONS_FILE):
+            raise FileNotFoundError("GPT_Instructions.txt not found.")
+
         with open(INSTRUCTIONS_FILE, "r", encoding="utf-8") as f:
             instructions = f.read().strip()
             if not instructions:
                 raise ValueError("Instruction file is empty.")
-            logging.info(f"[LOAD] Instructions loaded successfully.")
+            logging.info("[LOAD] GPT instructions loaded successfully.")
             return instructions
     except Exception as e:
         logging.error("[LOAD ERROR] Failed to load GPT instructions")
         logging.error(traceback.format_exc())
-        raise FileNotFoundError(f"Failed to load GPT instructions file: {str(e)}")
+        raise
 
-# === Utility: Run GPT DDS Review
+# === Utility: Get GPT DDS output
 def get_gpt_review(instructions, content):
     try:
-        logging.info("[GPT] Sending request to OpenAI...")
+        logging.info(f"[GPT] Sending {len(content.split())} tokens to GPT...")
+
         messages = [
             {"role": "system", "content": instructions},
             {"role": "user", "content": content}
@@ -69,15 +73,15 @@ def get_gpt_review(instructions, content):
         )
 
         result = response['choices'][0]['message']['content']
-        logging.info(f"[GPT] DDS response received — {len(result)} chars")
+        logging.info(f"[GPT] Received DDS review — {len(result)} chars")
         return result
 
     except Exception as e:
-        logging.error("[GPT ERROR] Failed to generate DDS review")
+        logging.error("[GPT ERROR] GPT DDS generation failed")
         logging.error(traceback.format_exc())
         raise RuntimeError(f"GPT DDS generation failed: {str(e)}")
 
-# === Utility: Save text to PDF
+# === Utility: Save result to PDF
 def save_to_pdf(text, filename):
     try:
         pdf = FPDF()
@@ -90,13 +94,13 @@ def save_to_pdf(text, filename):
 
         output_path = os.path.join(OUTPUT_FOLDER, filename)
         pdf.output(output_path)
-        logging.info(f"[SAVE] DDS PDF saved: {output_path}")
+        logging.info(f"[SAVE] DDS PDF created at {output_path}")
         return output_path
 
     except Exception as e:
-        logging.error("[SAVE ERROR] Failed to generate PDF")
+        logging.error("[SAVE ERROR] Failed to generate output PDF")
         logging.error(traceback.format_exc())
-        raise RuntimeError(f"Failed to save PDF: {str(e)}")
+        raise RuntimeError(f"Failed to save DDS output as PDF: {str(e)}")
 
 # === Core Processor Entry Point
 def process_files(filepaths):
@@ -104,19 +108,19 @@ def process_files(filepaths):
         combined_text = ""
 
         for path in filepaths:
-            extracted_text = extract_text_from_pdf(path)
-            combined_text += f"\n\n===== {os.path.basename(path)} =====\n{extracted_text[:2000]}..."  # Preview
+            extracted = extract_text_from_pdf(path)
+            combined_text += f"\n\n===== {os.path.basename(path)} =====\n{extracted}"
 
         instructions = load_instructions()
         dds_output = get_gpt_review(instructions, combined_text)
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-        final_filename = f"DDS_Review_{timestamp}.pdf"
-        final_path = save_to_pdf(dds_output, final_filename)
+        filename = f"DDS_Review_{timestamp}.pdf"
+        final_path = save_to_pdf(dds_output, filename)
 
         return final_path, None
 
     except Exception as e:
-        logging.error("[PROCESS ERROR] Failed during DDS processing pipeline")
+        logging.error("[PROCESS ERROR] DDS pipeline failed")
         logging.error(traceback.format_exc())
         return None, str(e)

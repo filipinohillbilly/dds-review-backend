@@ -33,6 +33,23 @@ latest_uploads = []
 latest_output_filename = None
 last_error = None
 
+# === Root Route for sanity check
+@app.route("/", methods=["GET"])
+def root():
+    logging.info("[ROOT] Health check endpoint called.")
+    return "✅ DDS Review Backend is running.", 200
+
+# === Optional: Health route
+@app.route("/health", methods=["GET"])
+def health():
+    logging.info("[HEALTH] Health diagnostics requested.")
+    return jsonify({
+        "status": "online",
+        "uploads": os.listdir(UPLOAD_FOLDER),
+        "output": os.listdir(OUTPUT_FOLDER),
+        "last_error": last_error or "None"
+    }), 200
+
 @app.route("/upload", methods=["POST"])
 def upload_files():
     global latest_uploads, last_error
