@@ -6,7 +6,7 @@ from fpdf import FPDF
 
 # === Load API Key and Constants
 openai.api_key = os.getenv("OPENAI_API_KEY")
-UPLOAD_FOLDER = "output"
+OUTPUT_FOLDER = "output"
 INSTRUCTIONS_FILE = os.path.join(os.path.dirname(__file__), "GPT_Instructions.txt")
 
 # === Utility: Extract text from PDF
@@ -62,7 +62,7 @@ def save_to_pdf(text, filename):
         for line in text.splitlines():
             pdf.multi_cell(0, 5, line)
 
-        output_path = os.path.join(UPLOAD_FOLDER, filename)
+        output_path = os.path.join(OUTPUT_FOLDER, filename)
         pdf.output(output_path)
         return output_path
 

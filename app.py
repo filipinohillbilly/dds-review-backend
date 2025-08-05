@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
-from utils import extract_text_from_pdf, load_instructions, get_gpt_review, save_to_pdf
+from process import process_files  # ✅ Centralized logic
 import werkzeug
 
 UPLOAD_FOLDER = "uploads"
@@ -44,9 +44,8 @@ def upload_files():
         print(last_error)
         return jsonify({"error": str(e)}), 400
 
-
 @app.route("/process", methods=["GET"])
-def process_files():
+def process_files_route():
     global latest_output_filename, last_error
 
     try:
@@ -55,39 +54,22 @@ def process_files():
             raise FileNotFoundError("No uploaded PDFs found in upload folder.")
 
         filepaths = [os.path.join(UPLOAD_FOLDER, name) for name in filenames]
-        combined_text = ""
+        print(f"[PROCESS] Starting processing of {len(filepaths)} files...")
 
-        for path in filepaths:
-            text = extract_text_from_pdf(path)
-            combined_text += f"\n\n===== {os.path.basename(path)} =====\n{text}"
+        output_path, error = process_files(filepaths)
 
-        if not combined_text.strip():
-            raise ValueError("Text extraction failed – content is empty.")
+        if error:
+            raise RuntimeError(error)
 
-        print(f"[PROCESS] Total characters extracted: {len(combined_text)}")
-
-        instructions = load_instructions()
-        if not instructions.strip():
-            raise ValueError("Instruction file is empty or unreadable.")
-
-        print(f"[PROCESS] Instruction file loaded successfully.")
-
-        gpt_output = get_gpt_review(instructions, combined_text)
-
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
-        final_filename = f"DDS_Review_{timestamp}.pdf"
-        output_path = save_to_pdf(gpt_output, final_filename)
-
-        latest_output_filename = final_filename
+        latest_output_filename = os.path.basename(output_path)
         last_error = None
-        print(f"[SUCCESS] DDS review completed: {final_filename}")
-        return jsonify({"message": "Processing complete", "filename": final_filename}), 200
+        print(f"[SUCCESS] DDS review completed: {latest_output_filename}")
+        return jsonify({"message": "Processing complete", "filename": latest_output_filename}), 200
 
     except Exception as e:
         last_error = f"[PROCESS ERROR] {str(e)}"
         print(last_error)
         return jsonify({"error": last_error}), 500
-
 
 @app.route("/download/<filename>", methods=["GET"])
 def download_file(filename):
@@ -96,7 +78,6 @@ def download_file(filename):
     except FileNotFoundError:
         return jsonify({"error": "File not found"}), 404
 
-
 @app.route("/status", methods=["GET"])
 def status():
     return jsonify({
@@ -104,7 +85,6 @@ def status():
         "latest_output": latest_output_filename,
         "last_error": last_error or "None"
     }), 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
