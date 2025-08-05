@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from process import process_files  # import the DDS logic processor
+from process import process_files, latest_output_filename  # DDS logic + output tracking
 
 # === App Setup
 app = Flask(__name__)
@@ -16,7 +16,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def index():
     return "DDS backend server is live", 200
 
-# === Upload Endpoint (Make.com)
+# === Upload Endpoint (Make.com POSTs PDF here)
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
@@ -33,7 +33,7 @@ def upload_file():
 
         print(f"✅ File received and saved to {save_path}")
 
-        # === Call the DDS Review Processor
+        # === Run DDS Logic
         generated_path = process_files([save_path])
         print(f"📄 DDS PDF saved to {generated_path}")
 
@@ -62,6 +62,24 @@ def download_file(filename):
         import traceback
         traceback.print_exc()
         return jsonify({"error": f"Download failed: {str(e)}"}), 500
+
+# === GET Process Status
+@app.route("/process", methods=["GET"])
+def process_file():
+    try:
+        output_path = os.path.join(UPLOAD_FOLDER, latest_output_filename)
+        if os.path.exists(output_path):
+            return jsonify({
+                "output_file": latest_output_filename,
+                "url": f"https://dds-review-backend.onrender.com/download/{latest_output_filename}"
+            }), 200
+        else:
+            return jsonify({"error": "Latest output file not found."}), 404
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Process check failed: {str(e)}"}), 500
 
 # === Entry Point
 if __name__ == "__main__":
