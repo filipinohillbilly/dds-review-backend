@@ -6,6 +6,8 @@ from flask_cors import CORS
 from datetime import datetime
 from process import process_files
 import werkzeug
+import requests
+from urllib.parse import urlparse, parse_qs
 
 # === Constants
 UPLOAD_FOLDER = "uploads"
@@ -56,7 +58,6 @@ def upload_files():
     global latest_uploads, last_error
 
     try:
-        # Expecting a single file with key "file" from Make HTTP Module 17
         uploaded_file = request.files.get("file")
         if not uploaded_file:
             raise werkzeug.exceptions.BadRequest("No file provided in upload.")
@@ -127,6 +128,62 @@ def status():
         "last_error": last_error or "None",
         "log_tail": log_tail
     }), 200
+
+# === NEW: Google Drive link ingestion endpoint
+@app.route("/process-gdrive", methods=["POST"])
+def process_gdrive_links():
+    global latest_output_filename, last_error
+
+    try:
+        data = request.get_json(force=True)
+        urls = data.get("urls", [])
+
+        if not urls or not isinstance(urls, list):
+            raise ValueError("No valid list of URLs provided.")
+
+        filepaths = []
+
+        for url in urls:
+            if "drive.google.com" not in url:
+                continue
+
+            file_id = None
+            if "/file/d/" in url:
+                file_id = url.split("/file/d/")[1].split("/")[0]
+            elif "id=" in url:
+                file_id = parse_qs(urlparse(url).query).get("id", [None])[0]
+
+            if not file_id:
+                raise ValueError(f"Invalid Google Drive URL: {url}")
+
+            download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+            response = requests.get(download_url)
+            if response.status_code != 200:
+                raise RuntimeError(f"Failed to download file from: {url}")
+
+            filename = f"gdrive_{file_id}.pdf"
+            save_path = os.path.join(UPLOAD_FOLDER, filename)
+            with open(save_path, "wb") as f:
+                f.write(response.content)
+
+            logging.info(f"[GDRIVE] Downloaded and saved: {filename}")
+            filepaths.append(save_path)
+
+        output_path, error = process_files(filepaths)
+
+        if error:
+            raise RuntimeError(error)
+
+        latest_output_filename = os.path.basename(output_path)
+        last_error = None
+        logging.info(f"[GDRIVE] DDS review completed: {latest_output_filename}")
+        return jsonify({"message": "GDrive DDS complete", "filename": latest_output_filename}), 200
+
+    except Exception as e:
+        last_error = f"[GDRIVE ERROR] {str(e)}"
+        logging.error(last_error)
+        logging.error(traceback.format_exc())
+        return jsonify({"error": last_error}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
