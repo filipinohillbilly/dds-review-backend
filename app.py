@@ -50,24 +50,23 @@ def health():
         "last_error": last_error or "None"
     }), 200
 
+# === Updated Upload Endpoint for Make.com Module 17
 @app.route("/upload", methods=["POST"])
 def upload_files():
     global latest_uploads, last_error
 
     try:
-        uploaded_files = request.files.getlist("files")
-        if not uploaded_files:
-            raise werkzeug.exceptions.BadRequest("No files provided in upload.")
+        # Expecting a single file with key "file" from Make HTTP Module 17
+        uploaded_file = request.files.get("file")
+        if not uploaded_file:
+            raise werkzeug.exceptions.BadRequest("No file provided in upload.")
 
-        filepaths = []
-        for file in uploaded_files:
-            filename = file.filename
-            save_path = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(save_path)
-            filepaths.append(save_path)
-            logging.info(f"[UPLOAD] Received and saved: {filename}")
+        filename = uploaded_file.filename or "input.pdf"
+        save_path = os.path.join(UPLOAD_FOLDER, filename)
+        uploaded_file.save(save_path)
+        logging.info(f"[UPLOAD] Received and saved: {filename}")
 
-        latest_uploads = [os.path.basename(f) for f in filepaths]
+        latest_uploads = [filename]
         last_error = None
         return jsonify({"message": "Upload successful", "files": latest_uploads}), 200
 
@@ -77,6 +76,7 @@ def upload_files():
         logging.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 400
 
+# === GET trigger for Module 18
 @app.route("/process", methods=["GET"])
 def process_files_route():
     global latest_output_filename, last_error
