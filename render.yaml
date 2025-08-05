@@ -2,5 +2,12 @@ services:
   - type: web
     name: dds-review-backend
     env: python
-    buildCommand: ""
-    startCommand: gunicorn app:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -1,0 +1,108 @@
+Review each PDF starting and apply the following Rules:
+
+1. Begin by locating and parsing the PDF that includes "DailyReview_Rules" in the filename or contents. Use this file to extract and enforce all global rules, thresholds, and logic for DDS execution.
+
+2. Review all data across all PDF files provided. Each file corresponds to one of the following:
+   - Ka Pisti Oi Fund
+   - Roth IRA
+   - Brokerage
+   - VAR
+   - Watchlist
+   - Rebalance
+   - Rules (critical)
+
+3. Apply the DDS (Defend / Destroy / Summarize) framework to each of the following sleeves:
+   - Ka Pisti Oi (KPO)
+   - Roth IRA
+   - Brokerage
+   - Watchlist Sub-Sleeve
+
+---
+
+### DDS Framework:
+
+For **each sleeve**, return:
+
+**DEFEND**  
+- Identify strengths, top performers, CAGR outliers, tailwind momentum, and thesis-aligned assets.  
+- Mention any overperformers or critical positions reinforcing overall performance.  
+- Include RSI strength, volatility control, and risk flags (or lack thereof).
+
+**DESTROY**  
+- Identify underperformers by 1W/2W P/L, failed RSI, poor CAGR, or kill-switch violations.  
+- Flag drawdown assets, value-at-risk levels, and volatility breaches.  
+- Highlight any discipline breakdown (e.g., overbought stacking, no cash redeployment, DCA stalled).
+
+**SUMMARY**  
+- Tactical instructions per sleeve: HOLD, TRIM, KILL, or PROMOTE.
+- Include “Rotation Watch” notes for assets on verge of being dropped.
+- Include DCA plan or capital redeployment alert.
+- Confirm if kill-switches are triggered or not.
+
+---
+
+### Performance Targets
+
+Apply the following performance thresholds in DDS analysis:
+
+**Ka Pisti Oi**
+- Weekly P/L target: +2.25%
+- CAGR: 2M ≥ 150%, 1Y ≥ 100%, 3Y ≥ 75%, 5Y ≥ 60%
+
+**Roth IRA**
+- Weekly P/L target: +1.50%
+- CAGR: 1Y ≥ 40%, 3Y ≥ 30%, 5Y ≥ 20%
+
+**Brokerage**
+- Weekly P/L target: +1.25%
+- CAGR: 1Y ≥ 35%, 3Y ≥ 25%, 5Y ≥ 15%
+
+---
+
+### Watchlist Logic
+
+1. Compare all watchlist assets to active sleeve assets using 1Y, 3Y, and 5Y CAGR values and volatility.
+2. Promote watchlist assets if they outperform and meet the sleeve-specific promotion criteria:
+   - KPO: Tactical, high-volatility, 1Y CAGR ≥ 100%
+   - Roth IRA: Durable compounders, low β, strong 1Y and 3Y CAGR
+   - Brokerage: High-efficiency ETFs or growth names with 3Y CAGR ≥ 25%
+3. Categorize watchlist assets into:
+   - PROMOTE IMMEDIATELY
+   - ALERT / MONITOR
+   - NOT READY (exclude silently)
+
+---
+
+### Lagging Asset Review
+
+- If any asset appears to underperform, check for:
+  - Recent sharp declines vs. recovery patterns
+  - RSI or momentum confirmation
+  - Sector rotation or macro drag
+- Reference online financial summaries or news if needed (e.g., earnings reports, industry downturns, or specific asset events)
+- Then conclude whether to:
+  - DROP the asset
+  - HOLD but WATCH
+  - TRIM slowly
+  - ADD IF RECOVERING
+
+---
+
+### Output Format
+
+Return DDS reviews for:
+- Ka Pisti Oi
+- Roth IRA
+- Brokerage
+- Watchlist
+- Global Tactical Action Plan (last section)
+
+Use clear section headers, direct and tactical phrasing, and a professional tone. Match formatting used in prior chat-based DDS examples.
+
+End the report with a single call-to-action summary block, outlining urgent decisions, rotation candidates, and capital plans for the next review cycle.
+
+---
+
+
+
+
