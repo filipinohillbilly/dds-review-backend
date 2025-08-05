@@ -2,7 +2,7 @@ import os
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from process import process_files, latest_output_filename  # DDS logic + output tracking
+from process import process_files  # clean import only the function
 
 # === App Setup
 app = Flask(__name__)
@@ -10,6 +10,9 @@ CORS(app)
 
 UPLOAD_FOLDER = "/tmp"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# === Global variable to track latest generated filename
+latest_output_filename = None
 
 # === Health Check
 @app.route("/", methods=["GET"])
@@ -19,6 +22,7 @@ def index():
 # === Upload Endpoint (Make.com POSTs PDF here)
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    global latest_output_filename
     try:
         if "file" not in request.files:
             return jsonify({"error": "No file part in the request"}), 400
@@ -35,12 +39,13 @@ def upload_file():
 
         # === Run DDS Logic
         generated_path = process_files([save_path])
+        latest_output_filename = os.path.basename(generated_path)
         print(f"📄 DDS PDF saved to {generated_path}")
 
         return jsonify({
             "message": "File uploaded and processed successfully",
             "report_pdf": generated_path,
-            "download_url": f"https://dds-review-backend.onrender.com/download/{os.path.basename(generated_path)}"
+            "download_url": f"https://dds-review-backend.onrender.com/download/{latest_output_filename}"
         }), 200
 
     except Exception as e:
@@ -65,16 +70,18 @@ def download_file(filename):
 
 # === GET Process Status
 @app.route("/process", methods=["GET"])
-def process_file():
+def process_status():
     try:
-        output_path = os.path.join(UPLOAD_FOLDER, latest_output_filename)
-        if os.path.exists(output_path):
-            return jsonify({
-                "output_file": latest_output_filename,
-                "url": f"https://dds-review-backend.onrender.com/download/{latest_output_filename}"
-            }), 200
-        else:
-            return jsonify({"error": "Latest output file not found."}), 404
+        global latest_output_filename
+        if latest_output_filename:
+            output_path = os.path.join(UPLOAD_FOLDER, latest_output_filename)
+            if os.path.exists(output_path):
+                return jsonify({
+                    "output_file": latest_output_filename,
+                    "url": f"https://dds-review-backend.onrender.com/download/{latest_output_filename}"
+                }), 200
+
+        return jsonify({"error": "Latest output file not found."}), 404
 
     except Exception as e:
         import traceback

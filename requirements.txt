@@ -2,8 +2,12 @@ flask
 flask-cors
 openai
 python-dotenv
-requests             # For external HTTP API calls (fallbacks, enrichments)
-tiktoken             # For token counting (optional, useful for long prompt batching)
-pdfplumber           # For extracting text from PDF (best OCR-free PDF extractor)
-PyMuPDF              # Alternative PDF parser (for structured layout or image PDF fallback)
-fpdf              # For generating the PDF from GPT output
+requests
+tiktoken
+pdfplumber
+PyMuPDF
+fpdf
+
+# === Optional but Safe to Include (OCR, Image-based PDF support)
+pytesseract
+Pillow

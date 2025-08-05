@@ -2,11 +2,12 @@ services:
   - type: web
     name: dds-review-backend
     env: python
+    plan: free  # or 'starter' or 'standard' depending on Render account
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
     envVars:
       - key: OPENAI_API_KEY
-        sync: false
+        sync: false  # Set manually in Render Dashboard
       - key: FLASK_ENV
         value: production
       - key: PYTHONUNBUFFERED
